@@ -9,6 +9,7 @@ from courses.models import Enrollment, StudentProgress, Feedback, Quiz, Question
 from django.utils import timezone
 from django.db.models import Count, Avg, Q, F, FloatField, ExpressionWrapper
 from django.db import models
+from users.forms import ProfileEditForm
 import json
 
 User = get_user_model()
@@ -435,3 +436,24 @@ def quiz_results(request, attempt_id):
         'answers': answers,
     }
     return render(request, 'core/quiz_results.html', context)
+
+
+@staff_member_required
+def admin_edit_student_profile(request, user_id):
+    """Admin view to edit student profile"""
+    student = get_object_or_404(User, id=user_id, is_staff=False)
+    
+    if request.method == "POST":
+        form = ProfileEditForm(request.POST, request.FILES, instance=student)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Profile for {student.email} has been updated successfully!')
+            return redirect('admin_student_dashboard', user_id=user_id)
+    else:
+        form = ProfileEditForm(instance=student)
+    
+    context = {
+        'form': form,
+        'student': student,
+    }
+    return render(request, 'core/admin_edit_student_profile.html', context)
