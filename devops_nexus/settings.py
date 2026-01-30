@@ -64,6 +64,10 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# Media Files (User Uploads)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 # Custom Auth
 AUTH_USER_MODEL = 'users.CustomUser'
 LOGIN_REDIRECT_URL = 'dashboard'

@@ -2,45 +2,33 @@
 {% load course_filters %}
 
 {% block content %}
-<style>
-    /* Game Canvas Styling */
-    #gameCanvas {
-        background-color: #0f1115; /* Very dark background */
-        border: 2px solid #2d323e;
-        border-radius: 8px;
-        display: none; /* Hidden until start */
-        margin: 0 auto;
-        box-shadow: 0 0 20px rgba(0, 212, 255, 0.1);
-    }
-    .game-overlay {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        text-align: center;
-        color: white;
-        pointer-events: none; /* Let clicks pass through if needed */
-    }
-</style>
 
 <div class="row mt-4">
     <div class="col-md-4">
         <div class="card shadow-sm border-0" style="background-color: #1e222b; border: 1px solid #2d323e;">
             <div class="card-body text-center p-4">
                 <div class="mb-3">
-                    <div style="width: 100px; height: 100px; background-color: #0d6efd; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; margin: 0 auto; font-weight: bold;">
-                        {{ user.first_name|first|default:user.email|first|upper }}
-                    </div>
+                    {% if user.profile_picture %}
+                        <img src="{{ user.profile_picture.url }}" alt="Profile Picture" 
+                             style="width: 100px; height: 100px; object-fit: cover; border-radius: 50%; border: 3px solid #0d6efd; margin: 0 auto;">
+                    {% else %}
+                        <div style="width: 100px; height: 100px; background-color: #0d6efd; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; margin: 0 auto; font-weight: bold;">
+                            {{ user.first_name|first|default:user.email|first|upper }}
+                        </div>
+                    {% endif %}
                 </div>
                 <h4 class="text-white mb-1">
                     {% if user.first_name %}{{ user.first_name }} {{ user.last_name }}{% else %}Student{% endif %}
                 </h4>
                 <p class="text-muted mb-3">{{ user.email }}</p>
+                {% if user.phone_number %}
+                    <p class="text-muted small mb-2"><i class="bi bi-telephone me-2"></i>{{ user.phone_number }}</p>
+                {% endif %}
                 <div class="d-grid gap-2">
                     <a href="{% url 'quiz_hub' %}" class="btn btn-primary btn-sm">
                         <i class="bi bi-trophy-fill me-2"></i>Take Quiz
                     </a>
-                    <a href="#" class="btn btn-outline-light btn-sm">Edit Profile</a>
+                    <a href="{% url 'edit_profile' %}" class="btn btn-outline-light btn-sm"><i class="bi bi-pencil-square me-2"></i>Edit Profile</a>
                 </div>
             </div>
         </div>
@@ -248,31 +236,6 @@
     </div>
 </div>
 
-<div class="row mt-5 mb-5">
-    <div class="col-12">
-        <div class="card border-0 shadow-lg" style="background-color: #1e222b;">
-            <div class="card-header border-0 bg-transparent text-white pt-4 px-4 d-flex justify-content-between align-items-center">
-                <h3 class="mb-0"><i class="bi bi-controller me-2 text-info"></i>DevOps Career Snake</h3>
-                <span class="badge bg-secondary" id="scoreBoard">Skills Mastered: 0</span>
-            </div>
-            <div class="card-body text-center position-relative p-4">
-                
-                <div id="startScreen">
-                    <p class="text-muted">Eat the tech skills (AWS, Python, RHCSA) to grow your career!</p>
-                    <button class="btn btn-success btn-lg px-5" onclick="startGame()">
-                        <i class="bi bi-play-fill"></i> Start Game
-                    </button>
-                    <div class="mt-3 text-secondary small">Use Arrow Keys to Move</div>
-                </div>
-
-                <canvas id="gameCanvas" width="800" height="400"></canvas>
-                
-                <h5 id="targetLabel" class="mt-3 text-info" style="display:none;">Next Goal: <span class="fw-bold">AWS</span></h5>
-            </div>
-        </div>
-    </div>
-</div>
-
 <script>
     // --- COURSE TOPICS MANAGEMENT ---
     function toggleCourseTopics(enrollmentId) {
@@ -306,202 +269,5 @@
         }
         return cookieValue;
     }
-
-    // --- GAME CONFIGURATION ---
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
-    const startScreen = document.getElementById("startScreen");
-    const scoreBoard = document.getElementById("scoreBoard");
-    const targetLabel = document.getElementById("targetLabel");
-
-    const gridSize = 20;
-    const tileCountX = canvas.width / gridSize;
-    const tileCountY = canvas.height / gridSize;
-
-    // The "Food" List - DevOps Skills
-    const techStack = [
-        "AWS", "Linux", "Python", "Docker", "K8s", "Jenkins", 
-        "Terraform", "Ansible", "Git", "Azure", "GCP", "RHCSA", "RHCE"
-    ];
-
-    let score = 0;
-    let techIndex = 0;
-    
-    let snake = [];
-    let food = { x: 15, y: 15 };
-    let dx = 0;
-    let dy = 0;
-    let gameInterval;
-    let isGameRunning = false;
-
-    function startGame() {
-        // Reset Game State
-        snake = [{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }];
-        score = 0;
-        techIndex = 0;
-        dx = 1; // Start moving right
-        dy = 0;
-        isGameRunning = true;
-        
-        // UI Updates
-        startScreen.style.display = "none";
-        canvas.style.display = "block";
-        targetLabel.style.display = "block";
-        scoreBoard.innerText = "Skills Mastered: 0";
-        updateTargetLabel();
-
-        spawnFood();
-
-        if (gameInterval) clearInterval(gameInterval);
-        gameInterval = setInterval(gameLoop, 100); // 100ms = Game Speed
-    }
-
-    function gameLoop() {
-        if(!isGameRunning) return;
-
-        // Move Snake
-        const head = { x: snake[0].x + dx, y: snake[0].y + dy };
-
-        // Wall Collision (Game Over)
-        if (head.x < 0 || head.x >= tileCountX || head.y < 0 || head.y >= tileCountY) {
-            gameOver();
-            return;
-        }
-
-        // Self Collision (Game Over)
-        for (let i = 0; i < snake.length; i++) {
-            if (head.x === snake[i].x && head.y === snake[i].y) {
-                gameOver();
-                return;
-            }
-        }
-
-        snake.unshift(head); // Add new head
-
-        // Eat Food
-        if (head.x === food.x && head.y === food.y) {
-            score++;
-            techIndex = (techIndex + 1) % techStack.length; // Cycle through skills
-            scoreBoard.innerText = "Skills Mastered: " + score;
-            updateTargetLabel();
-            
-            // Check if player reached 10 points
-            if (score >= 5) {
-                gameWin();
-                return;
-            }
-            
-            spawnFood();
-            // Don't pop the tail, so snake grows
-        } else {
-            snake.pop(); // Remove tail if no food eaten
-        }
-
-        draw();
-    }
-
-    function draw() {
-        // Clear Screen
-        ctx.fillStyle = "#0f1115";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // Draw Snake
-        ctx.fillStyle = "#0d6efd"; // Blue Snake
-        for (let i = 0; i < snake.length; i++) {
-            // Make head lighter color
-            ctx.fillStyle = (i === 0) ? "#00d4ff" : "#0d6efd";
-            ctx.fillRect(snake[i].x * gridSize, snake[i].y * gridSize, gridSize - 2, gridSize - 2);
-        }
-
-        // Draw Food (The Tech Skill)
-        ctx.fillStyle = "#198754"; // Green Food
-        ctx.fillRect(food.x * gridSize, food.y * gridSize, gridSize - 2, gridSize - 2);
-        
-        // Draw Text near food
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "12px Arial";
-        ctx.fillText(techStack[techIndex], (food.x * gridSize) - 10, (food.y * gridSize) - 5);
-    }
-
-    function spawnFood() {
-        food.x = Math.floor(Math.random() * tileCountX);
-        food.y = Math.floor(Math.random() * tileCountY);
-        
-        // Ensure food doesn't spawn on snake body
-        for (let part of snake) {
-            if (part.x === food.x && part.y === food.y) spawnFood();
-        }
-    }
-
-    function updateTargetLabel() {
-        // Update the text below the canvas
-        targetLabel.innerHTML = `Next Goal: <span class="fw-bold text-white">${techStack[techIndex]}</span>`;
-    }
-
-    function gameOver() {
-        isGameRunning = false;
-        clearInterval(gameInterval);
-        
-        ctx.fillStyle = "rgba(0,0,0,0.7)";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        ctx.fillStyle = "white";
-        ctx.font = "30px Arial";
-        ctx.fillText("Game Over!", canvas.width / 2 - 80, canvas.height / 2);
-        ctx.font = "20px Arial";
-        ctx.fillText("Score: " + score, canvas.width / 2 - 40, canvas.height / 2 + 40);
-
-        setTimeout(() => {
-            canvas.style.display = "none";
-            targetLabel.style.display = "none";
-            startScreen.style.display = "block";
-        }, 2000);
-    }
-
-    function gameWin() {
-        isGameRunning = false;
-        clearInterval(gameInterval);
-        
-        ctx.fillStyle = "rgba(0,0,0,0.8)";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        ctx.fillStyle = "#00d4ff";
-        ctx.font = "bold 36px Arial";
-        ctx.fillText("Congratulations! 🎉", canvas.width / 2 - 160, canvas.height / 2 - 30);
-        ctx.fillStyle = "white";
-        ctx.font = "24px Arial";
-        ctx.fillText("Go back to studies :D", canvas.width / 2 - 140, canvas.height / 2 + 20);
-
-        setTimeout(() => {
-            canvas.style.display = "none";
-            targetLabel.style.display = "none";
-            startScreen.style.display = "block";
-        }, 3000);
-    }
-
-    // Keyboard Controls
-    document.addEventListener("keydown", (event) => {
-        // Prevent scrolling with arrows
-        if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(event.code) > -1) {
-            event.preventDefault();
-        }
-
-        if (!isGameRunning) return;
-
-        switch (event.key) {
-            case "ArrowUp":
-                if (dy !== 1) { dx = 0; dy = -1; }
-                break;
-            case "ArrowDown":
-                if (dy !== -1) { dx = 0; dy = 1; }
-                break;
-            case "ArrowLeft":
-                if (dx !== 1) { dx = -1; dy = 0; }
-                break;
-            case "ArrowRight":
-                if (dx !== -1) { dx = 1; dy = 0; }
-                break;
-        }
-    });
 </script>
 {% endblock %}

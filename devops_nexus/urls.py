@@ -3,6 +3,8 @@ from django.urls import path, include
 from users import views as user_views
 from core import views as core_views
 from django.contrib.auth import views as auth_views
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns = [
     path('', core_views.home, name='home'),
@@ -24,13 +26,18 @@ urlpatterns = [
     path('register/', user_views.register, name='register'),
     path('login/', auth_views.LoginView.as_view(template_name='users/login.html'), name='login'),
     path('logout/', auth_views.LogoutView.as_view(template_name='users/logout.html'), name='logout'),
+    path('profile/edit/', user_views.edit_profile, name='edit_profile'),
     
     # Admin student management (must come before Django admin)
     path('manage/students/', core_views.admin_students, name='admin_students'),
     path('manage/students/<int:user_id>/', core_views.admin_student_dashboard, name='admin_student_dashboard'),
+    path('manage/students/<int:user_id>/edit-profile/', core_views.admin_edit_student_profile, name='admin_edit_student_profile'),
     path('manage/students/<int:user_id>/update-progress/', core_views.admin_update_progress, name='admin_update_progress'),
     path('manage/students/enrollment/<int:enrollment_id>/update-progress/', core_views.admin_update_enrollment_progress, name='admin_update_enrollment_progress'),
     
     # Django admin (must be last)
     path('admin/', admin.site.urls),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
