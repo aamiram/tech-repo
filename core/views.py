@@ -5,16 +5,53 @@ from django.contrib.auth import get_user_model
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.contrib import messages
-from courses.models import Enrollment, StudentProgress, Feedback, Quiz, Question, QuizAttempt, QuizAnswer
+from courses.models import Enrollment, StudentProgress, Feedback, Quiz, Question, QuizAttempt, QuizAnswer, Course
 from django.utils import timezone
 from django.db.models import Count, Avg, Q, F, FloatField, ExpressionWrapper
 from django.db import models
+from users.forms import ProfileEditForm
 import json
 
 User = get_user_model()
 
 def home(request):
-    return render(request, 'core/home.html')
+    # Get available courses with Linux - RHCSA and RHCE first
+    linux_course = Course.objects.filter(title__icontains='Linux - RHCSA')
+    other_courses = Course.objects.exclude(title__icontains='Linux - RHCSA')
+    courses = list(linux_course) + list(other_courses)
+    context = {
+        'courses': courses
+    }
+    return render(request, 'core/home.html', context)
+
+def learning_paths(request):
+    """Display all available learning paths with Linux - RHCSA and RHCE first"""
+    linux_course = Course.objects.filter(title__icontains='Linux - RHCSA')
+    other_courses = Course.objects.exclude(title__icontains='Linux - RHCSA')
+    courses = list(linux_course) + list(other_courses)
+    context = {
+        'courses': courses
+    }
+    return render(request, 'core/learning_paths.html', context)
+
+@login_required
+def enroll_course(request, course_id):
+    """Enroll student in a course"""
+    course = get_object_or_404(Course, id=course_id)
+    
+    # Check if already enrolled
+    enrollment, created = Enrollment.objects.get_or_create(
+        user=request.user,
+        course=course,
+        defaults={'payment_status': 'PENDING'}
+    )
+    
+    if created:
+        messages.success(request, f'Successfully enrolled in {course.title}!')
+    else:
+        messages.info(request, f'You are already enrolled in {course.title}.')
+    
+    return redirect('dashboard')
 
 @login_required
 def dashboard(request):
@@ -52,6 +89,38 @@ def submit_feedback(request):
             rating=int(rating)
         )
         messages.success(request, 'Thank you for your feedback!')
+    else:
+        messages.error(request, 'Please provide a feedback message.')
+    
+    return redirect('dashboard')
+
+@login_required
+@require_POST
+def update_enrollment_progress(request, enrollment_id):
+    """Update course topic completion progress"""
+    enrollment = get_object_or_404(Enrollment, id=enrollment_id, user=request.user)
+    
+    try:
+        data = json.loads(request.body)
+        topic_index = str(data.get('topic_index'))
+        completed = data.get('completed', False)
+        
+        # Initialize course_progress if None
+        if enrollment.course_progress is None:
+            enrollment.course_progress = {}
+        
+        # Update topic completion status
+        enrollment.course_progress[topic_index] = completed
+        enrollment.save()
+        
+        return JsonResponse({
+            'success': True,
+            'completed': enrollment.get_completed_count(),
+            'total': len(enrollment.course.topics) if enrollment.course.topics else 0,
+            'percentage': enrollment.get_completion_percentage()
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
     else:
         messages.error(request, 'Please provide a feedback message.')
     
@@ -191,6 +260,29 @@ def admin_update_progress(request, user_id):
             'completed': progress.get_completed_count(),
             'percentage': progress.get_completion_percentage(),
             'fee_percentage': progress.get_fee_percentage(),
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+@staff_member_required
+@require_POST
+def admin_update_enrollment_progress(request, enrollment_id):
+    """API endpoint for admin to update student's course progress"""
+    enrollment = get_object_or_404(Enrollment, id=enrollment_id)
+    
+    try:
+        data = json.loads(request.body)
+        course_progress = data.get('course_progress')
+        
+        if course_progress is not None:
+            enrollment.course_progress = course_progress
+            enrollment.save()
+        
+        return JsonResponse({
+            'success': True,
+            'completed': enrollment.get_completed_count(),
+            'total': len(enrollment.course.topics) if enrollment.course.topics else 0,
+            'percentage': enrollment.get_completion_percentage()
         })
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
@@ -344,3 +436,24 @@ def quiz_results(request, attempt_id):
         'answers': answers,
     }
     return render(request, 'core/quiz_results.html', context)
+
+
+@staff_member_required
+def admin_edit_student_profile(request, user_id):
+    """Admin view to edit student profile"""
+    student = get_object_or_404(User, id=user_id, is_staff=False)
+    
+    if request.method == "POST":
+        form = ProfileEditForm(request.POST, request.FILES, instance=student)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Profile for {student.email} has been updated successfully!')
+            return redirect('admin_student_dashboard', user_id=user_id)
+    else:
+        form = ProfileEditForm(instance=student)
+    
+    context = {
+        'form': form,
+        'student': student,
+    }
+    return render(request, 'core/admin_edit_student_profile.html', context)
