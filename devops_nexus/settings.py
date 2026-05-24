@@ -50,8 +50,12 @@ WSGI_APPLICATION = 'devops_nexus.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'techgenxdb',
+        'USER': 'techgenxdbadmin',
+        'PASSWORD': '!TechGenx*0',
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
 
